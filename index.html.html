@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="語音記帳">
+<meta name="theme-color" content="#1a1a2e">
+<title>語音記帳</title>
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --surface: #1a1a2e;
+    --card: #16213e;
+    --accent: #e94560;
+    --accent2: #0f3460;
+    --text: #eaeaea;
+    --muted: #8888aa;
+    --border: #2a2a4a;
+    --success: #4ecca3;
+    --font: 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Header */
+  .header {
+    background: var(--surface);
+    padding: 52px 20px 16px;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .header-row { display: flex; justify-content: space-between; align-items: flex-end; }
+  .header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
+  .header h1 span { color: var(--accent); }
+  .month-total { text-align: right; }
+  .month-total .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .month-total .amount { font-size: 22px; font-weight: 700; color: var(--success); }
+
+  /* Voice button */
+  .mic-section {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 32px 20px 24px;
+  }
+  .mic-btn {
+    width: 88px; height: 88px; border-radius: 50%;
+    background: var(--accent);
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s, box-shadow 0.3s;
+    box-shadow: 0 0 0 0 rgba(233,69,96,0.4);
+    position: relative;
+  }
+  .mic-btn:active { transform: scale(0.93); }
+  .mic-btn.listening {
+    animation: pulse 1.4s ease-in-out infinite;
+    background: #c0392b;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(233,69,96,0.5); }
+    70% { box-shadow: 0 0 0 24px rgba(233,69,96,0); }
+    100% { box-shadow: 0 0 0 0 rgba(233,69,96,0); }
+  }
+  .mic-icon { font-size: 36px; }
+  .mic-hint { margin-top: 14px; font-size: 13px; color: var(--muted); text-align: center; line-height: 1.5; }
+  .mic-hint.active { color: var(--accent); }
+
+  /* Result preview */
+  .preview {
+    margin: 0 20px 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+    min-height: 64px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .preview.empty .preview-text { color: var(--muted); font-size: 14px; font-style: italic; }
+  .preview-parsed { width: 100%; }
+  .preview-amount { font-size: 28px; font-weight: 700; color: var(--success); }
+  .preview-shop { font-size: 15px; color: var(--text); margin-top: 2px; }
+  .preview-raw { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .preview-actions { display: flex; gap: 10px; margin-top: 14px; }
+  .btn-confirm, .btn-cancel {
+    flex: 1; padding: 11px; border-radius: 10px;
+    border: none; font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .btn-confirm { background: var(--success); color: #0a2a1e; }
+  .btn-cancel { background: var(--border); color: var(--muted); }
+  .btn-confirm:active, .btn-cancel:active { opacity: 0.7; }
+
+  /* Category chips */
+  .cats {
+    display: flex; gap: 8px; padding: 0 20px 16px;
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .cats::-webkit-scrollbar { display: none; }
+  .cat-chip {
+    flex-shrink: 0; padding: 6px 14px; border-radius: 20px;
+    font-size: 13px; cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted);
+    transition: all 0.15s;
+  }
+  .cat-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  /* Records list */
+  .section-title {
+    padding: 4px 20px 10px;
+    font-size: 12px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px;
+  }
+  .records { padding: 0 20px 100px; }
+  .record {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 14px;
+    animation: slideIn 0.25s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .record-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: var(--accent2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+  .record-info { flex: 1; }
+  .record-shop { font-size: 15px; font-weight: 600; }
+  .record-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .record-amount { font-size: 17px; font-weight: 700; color: var(--accent); }
+  .record-delete {
+    background: none; border: none; color: var(--border);
+    font-size: 20px; cursor: pointer; padding: 4px;
+    transition: color 0.15s;
+  }
+  .record-delete:active { color: var(--accent); }
+
+  .empty-state {
+    text-align: center; padding: 48px 20px;
+    color: var(--muted); font-size: 14px; line-height: 1.8;
+  }
+  .empty-state .big { font-size: 48px; margin-bottom: 12px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--success); color: #0a2a1e;
+    padding: 12px 24px; border-radius: 24px;
+    font-size: 14px; font-weight: 600;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    z-index: 100; white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Error banner */
+  .error-banner {
+    background: rgba(233,69,96,0.15); border: 1px solid rgba(233,69,96,0.3);
+    border-radius: 12px; padding: 12px 16px; margin: 0 20px 16px;
+    font-size: 13px; color: #f08090; display: none;
+  }
+  .error-banner.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-row">
+    <h1>口說<span>記帳</span></h1>
+    <div class="month-total">
+      <div class="label">本月支出</div>
+      <div class="amount" id="monthTotal">$0</div>
+    </div>
+  </div>
+</div>
+
+<div class="mic-section">
+  <button class="mic-btn" id="micBtn" onclick="toggleRecording()">
+    <span class="mic-icon">🎙️</span>
+  </button>
+  <div class="mic-hint" id="micHint">按下麥克風，說出金額和商店<br>例如：「一百五在全家」</div>
+</div>
+
+<div class="error-banner" id="errorBanner"></div>
+
+<div class="preview empty" id="preview">
+  <div class="preview-text">語音辨識結果會顯示在這裡</div>
+</div>
+
+<div class="cats" id="catFilter">
+  <div class="cat-chip active" data-cat="all" onclick="filterCat(this,'all')">全部</div>
+  <div class="cat-chip" data-cat="餐飲" onclick="filterCat(this,'餐飲')">🍱 餐飲</div>
+  <div class="cat-chip" data-cat="超市" onclick="filterCat(this,'超市')">🛒 超市</div>
+  <div class="cat-chip" data-cat="交通" onclick="filterCat(this,'交通')">🚇 交通</div>
+  <div class="cat-chip" data-cat="娛樂" onclick="filterCat(this,'娛樂')">🎮 娛樂</div>
+  <div class="cat-chip" data-cat="其他" onclick="filterCat(this,'其他')">📦 其他</div>
+</div>
+
+<div class="section-title">支出記錄</div>
+<div class="records" id="records"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+let recognition = null;
+let isListening = false;
+let pendingEntry = null;
+let currentFilter = 'all';
+
+const STORAGE_KEY = 'voice_expense_v1';
+
+function loadRecords() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+  catch { return []; }
+}
+function saveRecords(r) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
+}
+
+function parseAmount(text) {
+  const kanji = {'零':0,'一':1,'二':2,'兩':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10,'百':100,'千':1000,'萬':10000};
+  const numMap = {'０':'0','１':'1','２':'2','３':'3','４':'4','５':'5','６':'6','７':'7','８':'8','９':'9'};
+  let t = text.replace(/[０-９]/g, c => numMap[c]);
+  
+  // Arabic digits
+  let m = t.match(/(\d+(?:\.\d+)?)/);
+  if (m) return parseFloat(m[1]);
+  
+  // Chinese number parsing
+  let chinM = t.match(/([零一二兩三四五六七八九十百千萬]+)/);
+  if (chinM) {
+    let s = chinM[1], total = 0, cur = 0;
+    for (let ch of s) {
+      let v = kanji[ch];
+      if (v >= 10) { cur = (cur||1)*v; if (v >= 1000) { total += cur; cur = 0; } }
+      else cur += v;
+    }
+    return total + cur;
+  }
+  return null;
+}
+
+function categorize(text) {
+  const maps = [
+    ['餐飲', ['餐廳','飯','麵','便利','全家','7-11','711','超商','早餐','午餐','晚餐','飲料','咖啡','珍奶','手搖','麥當勞','肯德基','星巴克','吃']],
+    ['超市', ['超市','全聯','家樂福','大潤發','愛買','購物','買']],
+    ['交通', ['捷運','公車','計程車','Uber','停車','油','加油','高鐵','火車']],
+    ['娛樂', ['電影','KTV','遊戲','網咖','展覽','書','電玩']],
+  ];
+  for (let [cat, keywords] of maps)
+    if (keywords.some(k => text.includes(k))) return cat;
+  return '其他';
+}
+
+const shopPatterns = [
+  /在(.{1,10})(?:買|花|付|消費|刷|花了)?$/,
+  /去(.{1,8})(?:買|花|付|消費)?/,
+  /(.{1,8}?)(?:買|買了|花了|付了)/,
+];
+
+function parseVoice(text) {
+  const amount = parseAmount(text);
+  if (!amount || amount > 99999) return null;
+
+  let shop = '未知商店';
+  for (let p of shopPatterns) {
+    const m = text.match(p);
+    if (m && m[1] && m[1].length > 0) { shop = m[1].trim(); break; }
+  }
+  if (shop === '未知商店') {
+    const cleaned = text.replace(/\d+/g,'').replace(/[一二兩三四五六七八九十百千萬零]/g,'').trim();
+    if (cleaned.length > 0 && cleaned.length <= 10) shop = cleaned;
+  }
+  const cat = categorize(text);
+  return { amount, shop, cat, raw: text };
+}
+
+function toggleRecording() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    showError('您的瀏覽器不支援語音辨識，請使用 Safari (iOS) 或 Chrome');
+    return;
+  }
+  if (isListening) { recognition && recognition.stop(); return; }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.lang = 'zh-TW';
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 3;
+
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById('micBtn').classList.add('listening');
+    document.getElementById('micHint').textContent = '聆聽中… 請說出金額和商店';
+    document.getElementById('micHint').classList.add('active');
+    hideError();
+  };
+
+  recognition.onresult = (e) => {
+    const results = Array.from(e.results);
+    const last = results[results.length - 1];
+    const transcript = last[0].transcript;
+    
+    if (last.isFinal) {
+      // Try all alternatives
+      let parsed = null;
+      for (let i = 0; i < last.length; i++) {
+        parsed = parseVoice(last[i].transcript);
+        if (parsed) break;
+      }
+      showPreview(parsed, transcript);
+    }
+  };
+
+  recognition.onerror = (e) => {
+    const msgs = { 'not-allowed': '請允許麥克風權限，然後重試', 'no-speech': '沒有偵測到聲音，請再試一次', 'network': '網路錯誤，請確認連線' };
+    showError(msgs[e.error] || '語音辨識失敗，請再試一次');
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    document.getElementById('micBtn').classList.remove('listening');
+    document.getElementById('micHint').classList.remove('active');
+    document.getElementById('micHint').innerHTML = '按下麥克風，說出金額和商店<br>例如：「一百五在全家」';
+  };
+
+  recognition.start();
+}
+
+function showPreview(parsed, rawText) {
+  const p = document.getElementById('preview');
+  p.classList.remove('empty');
+  if (!parsed) {
+    p.innerHTML = `
+      <div class="preview-parsed">
+        <div style="color:#f08090;font-size:14px;">無法辨識金額，請再試一次</div>
+        <div class="preview-raw">聽到：「${rawText}」</div>
+        <div class="preview-actions">
+          <button class="btn-cancel" onclick="clearPreview()">清除</button>
+        </div>
+      </div>`;
+    return;
+  }
+  pendingEntry = parsed;
+  p.innerHTML = `
+    <div class="preview-parsed">
+      <div class="preview-amount">$${parsed.amount}</div>
+      <div class="preview-shop">${parsed.shop} · <span style="color:var(--muted);font-size:13px;">${parsed.cat}</span></div>
+      <div class="preview-raw">「${rawText}」</div>
+      <div class="preview-actions">
+        <button class="btn-confirm" onclick="confirmEntry()">✓ 確認記錄</button>
+        <button class="btn-cancel" onclick="clearPreview()">取消</button>
+      </div>
+    </div>`;
+}
+
+function confirmEntry() {
+  if (!pendingEntry) return;
+  const records = loadRecords();
+  const entry = {
+    id: Date.now(),
+    amount: pendingEntry.amount,
+    shop: pendingEntry.shop,
+    cat: pendingEntry.cat,
+    raw: pendingEntry.raw,
+    time: new Date().toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })
+  };
+  records.unshift(entry);
+  saveRecords(records);
+  pendingEntry = null;
+  clearPreview();
+  renderRecords();
+  updateTotal();
+  showToast(`已記錄 $${entry.amount} @ ${entry.shop}`);
+}
+
+function clearPreview() {
+  pendingEntry = null;
+  const p = document.getElementById('preview');
+  p.classList.add('empty');
+  p.innerHTML = '<div class="preview-text">語音辨識結果會顯示在這裡</div>';
+}
+
+const catEmoji = { '餐飲':'🍱','超市':'🛒','交通':'🚇','娛樂':'🎮','其他':'📦' };
+
+function renderRecords() {
+  const all = loadRecords();
+  const filtered = currentFilter === 'all' ? all : all.filter(r => r.cat === currentFilter);
+  const container = document.getElementById('records');
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="empty-state"><div class="big">🎙️</div>還沒有記錄<br>按麥克風開始記帳</div>`;
+    return;
+  }
+  container.innerHTML = filtered.map(r => `
+    <div class="record" id="rec-${r.id}">
+      <div class="record-icon">${catEmoji[r.cat] || '📦'}</div>
+      <div class="record-info">
+        <div class="record-shop">${r.shop}</div>
+        <div class="record-meta">${r.cat} · ${r.time}</div>
+      </div>
+      <div class="record-amount">$${r.amount}</div>
+      <button class="record-delete" onclick="deleteRecord(${r.id})" aria-label="刪除">×</button>
+    </div>`).join('');
+}
+
+function deleteRecord(id) {
+  if (!confirm('確定刪除這筆記錄？')) return;
+  const records = loadRecords().filter(r => r.id !== id);
+  saveRecords(records);
+  renderRecords();
+  updateTotal();
+}
+
+function updateTotal() {
+  const now = new Date();
+  const total = loadRecords()
+    .filter(r => { const d = new Date(r.id); return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear(); })
+    .reduce((s, r) => s + r.amount, 0);
+  document.getElementById('monthTotal').textContent = '$' + total.toLocaleString('zh-TW');
+}
+
+function filterCat(el, cat) {
+  document.querySelectorAll('.cat-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  currentFilter = cat;
+  renderRecords();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+function showError(msg) {
+  const e = document.getElementById('errorBanner');
+  e.textContent = msg; e.classList.add('show');
+}
+function hideError() {
+  document.getElementById('errorBanner').classList.remove('show');
+}
+
+renderRecords();
+updateTotal();
+</script>
+</body>
+</html>
